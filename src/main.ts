@@ -3,7 +3,7 @@ import App from "./App.vue";
 import router from "./router";
 import store from "./store";
 //引入全局样式表
-import "./assets/css/blobal.css"
+import "./assets/css/blobal.css";
 //引入elemen-u控件
 import ElementUI from "element-ui";
 import "element-ui/lib/theme-chalk/index.css";

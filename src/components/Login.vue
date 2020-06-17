@@ -13,8 +13,17 @@
         :rules="loginRules"
         v-loading="LoginLoading"
       >
+        <el-form-item class="el_form_item_select">
+          <el-button type="primary" size="small" round @click="changeVFLogin"
+            >短信登录</el-button
+          >
+          <el-button type="success" size="small" round @click="changPwdLogin"
+            >密码登录</el-button
+          >
+        </el-form-item>
+        <!--验证码登录-->
         <!--手机号-->
-        <el-form-item prop="phoneNumber">
+        <el-form-item prop="phoneNumber" v-if="table1show">
           <el-input
             v-model="loginInfo.phoneNumber"
             maxlength="11"
@@ -23,7 +32,7 @@
           </el-input>
         </el-form-item>
         <!--验证码输入框-->
-        <el-form-item prop="vfCode">
+        <el-form-item prop="vfCode" v-if="table1show">
           <el-input
             type="password"
             class="vf_input"
@@ -48,12 +57,36 @@
             >{{ content }}</el-button
           >
         </el-form-item>
+
+        <!--账号密码登录-->
+        <!--手机号-->
+        <el-form-item prop="phoneNumber" v-if="table2show">
+          <el-input
+            v-model="loginInfo.phoneNumber"
+            maxlength="11"
+            prefix-icon="el-icon-mobile-phone"
+          >
+          </el-input>
+        </el-form-item>
+        <!--密码-->
+        <el-form-item prop="password" v-if="table2show">
+          <el-input
+            v-model="loginInfo.password"
+            maxlength="11"
+            prefix-icon="el-icon-lock"
+          >
+          </el-input>
+        </el-form-item>
+
+        <el-form-item class="el_form_item_rem">
+          <el-button size="small" round>忘记密码?</el-button>
+        </el-form-item>
         <!--按钮-->
         <el-form-item class="login_button">
           <el-button type="primary" round @click="userLogin">登录</el-button>
           <el-button type="info" round @click="resetLoginFrom">重置</el-button>
         </el-form-item>
-        <el-form-item class="">
+        <el-form-item>
           社交账号登录
           <el-button
             class="other_login"
@@ -78,11 +111,8 @@
     </div>
     <div class="footer">
       <span>© 2020 欣酋科技 · </span>
-      <a style="text-decoration:none;" href="https://tsm.miit.gov.cn/dxxzsp/"
-        >京 ICP 证 394309 号 ·
-      </a>
+      <a href="https://tsm.miit.gov.cn/dxxzsp/">京 ICP 证 394309 号 · </a>
       <a
-        style="text-decoration:none;"
         href="http://www.beian.gov.cn/portal/registerSystemInfo?recordcode=11010802020088"
       >
         <img
@@ -91,10 +121,7 @@
         />
         京公网安备 11010802010035 号 ·
       </a>
-      <a
-        style="text-decoration:none;"
-        href="https://zhstatic.zhihu.com/assets/zhihu/publish-license.jpg"
-      >
+      <a href="https://zhstatic.zhihu.com/assets/zhihu/publish-license.jpg">
         出版物经营许可证
       </a>
     </div>
@@ -108,11 +135,13 @@
 </template>
 <script>
 //引入api.js  好调用里面的接口
-import { requestLogin } from "../api/api";
+import { requestLogin, setVfCode } from "../api/api";
 export default {
   name: "login",
   data() {
     return {
+      table1show: true,
+      table2show: false,
       isDisabled: false, //控制按钮是否可以点击（false:可以点击，true:不可点击）
       content: "获取短信验证码", // 发送验证码按钮的初始显示文字
       timer: null,
@@ -121,7 +150,8 @@ export default {
       LoginLoading: false,
       loginInfo: {
         phoneNumber: "",
-        vfCode: ""
+        vfCode: "",
+        password: ""
       },
       loginRules: {
         phoneNumber: [
@@ -143,55 +173,77 @@ export default {
             trigger: "blur"
           },
           { min: 6, max: 6, message: "请输入6位短信验证码", trigger: "blur" }
+        ],
+        password: [
+          {
+            required: true,
+            message: "请输入密码",
+            trigger: "blur"
+          },
+          { min: 6, max: 20, message: "请输入正确的密码", trigger: "blur" }
         ]
       }
     };
   },
   methods: {
+    //登录方式切换
+    changeVFLogin() {
+      this.table1show = true;
+      this.table2show = false;
+      this.resetLoginFrom();
+    },
+    changPwdLogin() {
+      this.table1show = false;
+      this.table2show = true;
+      this.resetLoginFrom();
+    },
     // 发送验证码
     sendVfCode() {
       // 校验手机号
-      if (this.loginInfo.phoneNumber == null) {
-        this.$message("请输入手机号");
-        return;
-      }
       if (!/^1[34578]\d{9}$/.test(this.loginInfo.phoneNumber)) {
-        this.$message("请输入正确的手机号");
+        this.$message({
+          message: "请输入正确的手机号",
+          type: "warning"
+        });
         return;
       }
       // 发送验证码
-      requestLogin(this.loginInfo).then(data => {
+      setVfCode(this.loginInfo).then(data => {
         this.isDisabled = false;
         if (data.code == "200") {
-          this.$message("验证码发送成功");
+          // 控制倒计时及按钮是否可以点击
+          const TIME_COUNT = 60;
+          this.count = TIME_COUNT;
+          this.timer = window.setInterval(() => {
+            if (this.count > 0 && this.count <= TIME_COUNT) {
+              // 倒计时时不可点击
+              this.isDisabled = true;
+              // 计时秒数
+              this.count--;
+              // 更新按钮的文字内容
+              this.content = this.count + "s后重新获取";
+            } else {
+              // 倒计时完，可点击
+              this.isDisabled = false;
+              // 更新按钮文字内容
+              this.content = "获取短信验证码";
+              // 清空定时器!!!
+              clearInterval(this.timer);
+              this.timer = null;
+            }
+          }, 1000);
+
+          this.$message({
+            message: data.msg,
+            type: "success"
+          });
         } else {
           this.$message({
             message: data.msg,
-            type: "验证码发送失败"
+            type: "error"
           });
         }
       });
-      // 控制倒计时及按钮是否可以点击
-      const TIME_COUNT = 60;
-      this.count = TIME_COUNT;
-      this.timer = window.setInterval(() => {
-        if (this.count > 0 && this.count <= TIME_COUNT) {
-          // 倒计时时不可点击
-          this.isDisabled = true;
-          // 计时秒数
-          this.count--;
-          // 更新按钮的文字内容
-          this.content = this.count + "s后重新获取";
-        } else {
-          // 倒计时完，可点击
-          this.isDisabled = false;
-          // 更新按钮文字内容
-          this.content = "获取短信验证码";
-          // 清空定时器!!!
-          clearInterval(this.timer);
-          this.timer = null;
-        }
-      }, 1000);
     },
     //重置表单
     resetLoginFrom() {
@@ -235,13 +287,16 @@ export default {
 }
 .login_box {
   width: 450px;
-  height: 400px;
+  height: 450px;
   background-color: white;
   border-radius: 5px;
   position: absolute;
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
+  a {
+    text-decoration: none;
+  }
 
   .avatar_box {
     height: 130px;
@@ -288,8 +343,8 @@ export default {
   bottom: 0;
   left: 50%;
   transform: translate(-50%, -100%);
-
   a {
+    text-decoration: none;
     color: white;
   }
 }
@@ -300,5 +355,11 @@ export default {
   bottom: 0;
   left: 50%;
   transform: translate(-50%, -20%);
+}
+.el_form_item_select {
+  text-align: center;
+}
+.el_form_item_rem {
+  text-align: left;
 }
 </style>
